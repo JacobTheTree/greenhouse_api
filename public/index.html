@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Greenhouse Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-bg: #1b4332;
+      --sidebar-hover: #2d6a4f;
+      --sidebar-active: #40916c;
+      --sidebar-text: #d8f3dc;
+      --sidebar-muted: #74c69d;
+      --primary: #2d6a4f;
+      --accent: #52b788;
+      --bg: #f0faf4;
+      --card-bg: #ffffff;
+      --border: #d8f3dc;
+      --text: #1b1b1b;
+      --muted: #6b7280;
+      --red: #e63946;
+      --blue: #457b9d;
+      --purple: #7b2d8b;
+      --orange: #f4a261;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 240px;
+      flex-shrink: 0;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 20px 16px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    #sidebar-header h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.3px;
+    }
+
+    #sidebar-header p {
+      font-size: 11px;
+      color: var(--sidebar-muted);
+      margin-top: 3px;
+    }
+
+    #server-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--sidebar-muted);
+    }
+
+    #server-status .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #6b7280;
+    }
+
+    #server-status.online .dot { background: #52b788; }
+    #server-status.online { color: #52b788; }
+
+    #station-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    #station-list::-webkit-scrollbar { width: 4px; }
+    #station-list::-webkit-scrollbar-track { background: transparent; }
+    #station-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+    .group-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--sidebar-muted);
+      padding: 12px 16px 4px;
+    }
+
+    .station-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border-radius: 0;
+    }
+
+    .station-item:hover { background: var(--sidebar-hover); }
+    .station-item.active { background: var(--sidebar-active); }
+
+    .station-item .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.active { background: #52b788; }
+    .status-dot.inactive { background: #6b7280; }
+
+    .station-item .station-name {
+      font-size: 13px;
+      color: var(--sidebar-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .station-item .station-loc {
+      font-size: 10px;
+      color: var(--sidebar-muted);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .station-text { min-width: 0; }
+
+    /* ── Main ── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #topbar {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    #station-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    #station-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    #topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .badge.active { background: #d8f3dc; color: #1b4332; }
+    .badge.inactive { background: #f3f4f6; color: #6b7280; }
+
+    .time-range-group {
+      display: flex;
+      gap: 2px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .time-btn {
+      border: none;
+      background: transparent;
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .time-btn:hover { color: var(--text); background: var(--border); }
+    .time-btn.active { background: var(--primary); color: #fff; }
+
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+
+    #content::-webkit-scrollbar { width: 6px; }
+    #content::-webkit-scrollbar-track { background: transparent; }
+    #content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Stat cards ── */
+    #stat-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .stat-card .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .stat-card .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-card .stat-unit {
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+
+    .stat-card .stat-change {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+
+    .stat-card.temp .stat-value { color: var(--red); }
+    .stat-card.humidity .stat-value { color: var(--blue); }
+    .stat-card.soil .stat-value { color: var(--purple); }
+    .stat-card.light .stat-value { color: var(--orange); }
+
+    /* ── Charts ── */
+    #chart-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .chart-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .chart-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .chart-meta {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 180px;
+    }
+
+    /* ── Empty / Loading states ── */
+    #empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      text-align: center;
+      gap: 10px;
+    }
+
+    #empty-state .icon { font-size: 48px; }
+    #empty-state h2 { font-size: 18px; font-weight: 600; color: var(--text); }
+    #empty-state p { font-size: 13px; }
+
+    .loading-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.7);
+      border-radius: 10px;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .loading-overlay.visible { display: flex; }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loading-bar {
+      height: 2px;
+      background: var(--accent);
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0%;
+      transition: width 0.3s;
+      z-index: 100;
+    }
+
+    .no-data-msg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading-bar"></div>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <div id="sidebar-header">
+    <h1>🌿 Greenhouse</h1>
+    <p>Sensor Monitor</p>
+    <div id="server-status">
+      <span class="dot"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </div>
+  <div id="station-list">
+    <div style="padding: 20px 16px; font-size: 12px; color: var(--sidebar-muted);">Loading stations…</div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div id="main">
+  <div id="topbar">
+    <div>
+      <div id="station-title">Select a station</div>
+      <div id="station-subtitle">Choose a station from the sidebar to view data</div>
+    </div>
+    <div id="topbar-right">
+      <span id="station-badge" class="badge" style="display:none"></span>
+      <div class="time-range-group" id="time-range-group">
+        <button class="time-btn" data-range="1h">1H</button>
+        <button class="time-btn" data-range="6h">6H</button>
+        <button class="time-btn active" data-range="24h">24H</button>
+        <button class="time-btn" data-range="7d">7D</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="content">
+    <div id="empty-state">
+      <div class="icon">🌱</div>
+      <h2>No station selected</h2>
+      <p>Pick a station from the sidebar to view its sensor readings.</p>
+    </div>
+
+    <div id="dashboard" style="display:none">
+      <div id="stat-cards">
+        <div class="stat-card temp">
+          <div class="stat-label">Temperature</div>
+          <div><span class="stat-value" id="stat-temp">—</span><span class="stat-unit">°C</span></div>
+          <div class="stat-change" id="stat-temp-range">—</div>
+        </div>
+        <div class="stat-card humidity">
+          <div class="stat-label">Humidity</div>
+          <div><span class="stat-value" id="stat-humidity">—</span><span class="stat-unit">%</span></div>
+          <div class="stat-change" id="stat-humidity-range">—</div>
+        </div>
+        <div class="stat-card soil">
+          <div class="stat-label">Soil Moisture</div>
+          <div><span class="stat-value" id="stat-soil">—</span><span class="stat-unit">%</span></div>
+          <div class="stat-change" id="stat-soil-range">—</div>
+        </div>
+        <div class="stat-card light">
+          <div class="stat-label">Light Intensity</div>
+          <div><span class="stat-value" id="stat-light">—</span><span class="stat-unit">lux</span></div>
+          <div class="stat-change" id="stat-light-range">—</div>
+        </div>
+      </div>
+
+      <div id="chart-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">
+              <span class="chart-dot" style="background: var(--red)"></span>
+              Temperature
+            </div>
+            <span class="chart-meta">°C</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart-temp"></canvas>
+            <div class="loading-overlay" id="load-temp"><div class="spinner"></div>Loading…</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">
+              <span class="chart-dot" style="background: var(--blue)"></span>
+              Humidity
+            </div>
+            <span class="chart-meta">%</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart-humidity"></canvas>
+            <div class="loading-overlay" id="load-humidity"><div class="spinner"></div>Loading…</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">
+              <span class="chart-dot" style="background: var(--purple)"></span>
+              Soil Moisture
+            </div>
+            <span class="chart-meta">%</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart-soil"></canvas>
+            <div class="loading-overlay" id="load-soil"><div class="spinner"></div>Loading…</div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">
+              <span class="chart-dot" style="background: var(--orange)"></span>
+              Light Intensity
+            </div>
+            <span class="chart-meta">lux</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="chart-light"></canvas>
+            <div class="loading-overlay" id="load-light"><div class="spinner"></div>Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = '/api-v0.1.0';
+  const GROUPS = ['group_A', 'group_B', 'group_C'];
+  const STANDALONE_IDS = ['station_S1', 'station_P1'];
+
+  let currentStationId = null;
+  let currentRange = '24h';
+  let charts = {};
+
+  // ── Utilities ──────────────────────────────────────────────
+
+  function getTimeRange(range) {
+    const end = new Date();
+    const start = new Date();
+    const h = (n) => start.setHours(start.getHours() - n);
+    const d = (n) => start.setDate(start.getDate() - n);
+    if (range === '1h') h(1);
+    else if (range === '6h') h(6);
+    else if (range === '24h') d(1);
+    else if (range === '7d') d(7);
+    return { start: start.toISOString(), end: end.toISOString() };
+  }
+
+  function setLoading(show) {
+    const bar = document.getElementById('loading-bar');
+    bar.style.width = show ? '70%' : '100%';
+    if (!show) setTimeout(() => { bar.style.width = '0%'; }, 300);
+  }
+
+  function showOverlay(id, show) {
+    document.getElementById(id).classList.toggle('visible', show);
+  }
+
+  async function apiFetch(path) {
+    const res = await fetch(API + path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // ── Server Status ──────────────────────────────────────────
+
+  async function checkServerStatus() {
+    const el = document.getElementById('server-status');
+    const txt = document.getElementById('status-text');
+    try {
+      await apiFetch('/server/status');
+      el.className = 'online';
+      txt.textContent = 'Online';
+    } catch {
+      el.className = '';
+      txt.textContent = 'Offline';
+    }
+  }
+
+  // ── Sidebar ────────────────────────────────────────────────
+
+  async function buildSidebar() {
+    const list = document.getElementById('station-list');
+    list.innerHTML = '';
+
+    for (const groupId of GROUPS) {
+      try {
+        const stations = await apiFetch(`/group/${groupId}/metadata`);
+        if (!stations || !stations.length) continue;
+
+        const label = document.createElement('div');
+        label.className = 'group-label';
+        label.textContent = groupId.replace('_', ' ');
+        list.appendChild(label);
+
+        for (const s of stations) {
+          list.appendChild(makeStationItem(s));
+        }
+      } catch (e) {
+        console.warn(`Could not load group ${groupId}:`, e);
+      }
+    }
+
+    // Standalone stations
+    const standalones = [];
+    for (const id of STANDALONE_IDS) {
+      try {
+        const s = await apiFetch(`/station/${id}/metadata`);
+        if (s) standalones.push(s);
+      } catch (e) {
+        console.warn(`Could not load station ${id}:`, e);
+      }
+    }
+
+    if (standalones.length) {
+      const label = document.createElement('div');
+      label.className = 'group-label';
+      label.textContent = 'Standalone';
+      list.appendChild(label);
+      for (const s of standalones) list.appendChild(makeStationItem(s));
+    }
+  }
+
+  function makeStationItem(station) {
+    const item = document.createElement('div');
+    item.className = 'station-item';
+    item.dataset.stationId = station.stationId;
+
+    const dot = document.createElement('span');
+    dot.className = `status-dot ${station.status}`;
+
+    const text = document.createElement('div');
+    text.className = 'station-text';
+
+    const name = document.createElement('div');
+    name.className = 'station-name';
+    name.textContent = station.stationId;
+
+    const loc = document.createElement('div');
+    loc.className = 'station-loc';
+    loc.textContent = station.location?.name || '';
+
+    text.appendChild(name);
+    text.appendChild(loc);
+    item.appendChild(dot);
+    item.appendChild(text);
+
+    item.addEventListener('click', () => selectStation(station.stationId, station));
+    return item;
+  }
+
+  // ── Station Selection ──────────────────────────────────────
+
+  async function selectStation(stationId, meta) {
+    // Update active state in sidebar
+    document.querySelectorAll('.station-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.stationId === stationId);
+    });
+
+    currentStationId = stationId;
+
+    // Update header
+    document.getElementById('station-title').textContent = stationId;
+    document.getElementById('station-subtitle').textContent =
+      `${meta.location?.name || ''} · ${meta.location?.zone || ''} · Interval: ${meta.readingInterval}s`;
+
+    const badge = document.getElementById('station-badge');
+    badge.textContent = meta.status;
+    badge.className = `badge ${meta.status}`;
+    badge.style.display = 'inline-block';
+
+    // Show dashboard
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+
+    await loadData(stationId);
+  }
+
+  // ── Data + Charts ──────────────────────────────────────────
+
+  async function loadData(stationId) {
+    setLoading(true);
+    ['load-temp','load-humidity','load-soil','load-light'].forEach(id => showOverlay(id, true));
+
+    try {
+      const { start, end } = getTimeRange(currentRange);
+      const readings = await apiFetch(
+        `/station/${stationId}/data?timeStart=${start}&timeEnd=${end}`
+      );
+
+      if (!readings || !readings.length) {
+        renderEmptyCharts();
+        updateStatCards(null);
+      } else {
+        renderCharts(readings);
+        updateStatCards(readings);
+      }
+    } catch (e) {
+      console.error('Failed to load data:', e);
+    } finally {
+      ['load-temp','load-humidity','load-soil','load-light'].forEach(id => showOverlay(id, false));
+      setLoading(false);
+    }
+  }
+
+  function updateStatCards(readings) {
+    if (!readings || !readings.length) {
+      ['stat-temp','stat-humidity','stat-soil','stat-light'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+      });
+      ['stat-temp-range','stat-humidity-range','stat-soil-range','stat-light-range'].forEach(id => {
+        document.getElementById(id).textContent = 'No data';
+      });
+      return;
+    }
+
+    const latest = readings[readings.length - 1].sensors;
+    const sensors = readings.map(r => r.sensors);
+
+    const fields = [
+      { key: 'temperature', statId: 'stat-temp', rangeId: 'stat-temp-range', unit: '°C' },
+      { key: 'humidity',    statId: 'stat-humidity', rangeId: 'stat-humidity-range', unit: '%' },
+      { key: 'soilMoisture',statId: 'stat-soil', rangeId: 'stat-soil-range', unit: '%' },
+      { key: 'lightIntensity', statId: 'stat-light', rangeId: 'stat-light-range', unit: 'lux' },
+    ];
+
+    for (const { key, statId, rangeId, unit } of fields) {
+      const val = latest[key];
+      const vals = sensors.map(s => s[key]).filter(v => v != null);
+      const min = Math.min(...vals).toFixed(1);
+      const max = Math.max(...vals).toFixed(1);
+
+      document.getElementById(statId).textContent =
+        val != null ? parseFloat(val.toFixed(1)) : '—';
+      document.getElementById(rangeId).textContent =
+        vals.length ? `Min ${min} · Max ${max} ${unit}` : 'No data';
+    }
+  }
+
+  function makeChartData(readings, key, color) {
+    return {
+      labels: readings.map(r => new Date(r.timestamp)),
+      datasets: [{
+        data: readings.map(r => {
+          const v = r.sensors[key];
+          return v != null ? parseFloat(v.toFixed(2)) : null;
+        }),
+        borderColor: color,
+        backgroundColor: color + '18',
+        borderWidth: 1.5,
+        pointRadius: readings.length > 100 ? 0 : 2,
+        pointHoverRadius: 4,
+        fill: true,
+        tension: 0.3,
+        spanGaps: true,
+      }]
+    };
+  }
+
+  const chartConfigs = [
+    { canvasId: 'chart-temp',     key: 'temperature',    color: '#e63946', unit: '°C'  },
+    { canvasId: 'chart-humidity', key: 'humidity',       color: '#457b9d', unit: '%'   },
+    { canvasId: 'chart-soil',     key: 'soilMoisture',   color: '#7b2d8b', unit: '%'   },
+    { canvasId: 'chart-light',    key: 'lightIntensity', color: '#f4a261', unit: 'lux' },
+  ];
+
+  function renderCharts(readings) {
+    for (const cfg of chartConfigs) {
+      const data = makeChartData(readings, cfg.key, cfg.color);
+      if (charts[cfg.canvasId]) {
+        charts[cfg.canvasId].data = data;
+        charts[cfg.canvasId].update('none');
+      } else {
+        charts[cfg.canvasId] = buildChart(cfg.canvasId, data, cfg.unit, cfg.color);
+      }
+    }
+  }
+
+  function renderEmptyCharts() {
+    for (const cfg of chartConfigs) {
+      const emptyData = { labels: [], datasets: [{ data: [] }] };
+      if (charts[cfg.canvasId]) {
+        charts[cfg.canvasId].data = emptyData;
+        charts[cfg.canvasId].update('none');
+      } else {
+        charts[cfg.canvasId] = buildChart(cfg.canvasId, emptyData, cfg.unit, cfg.color);
+      }
+    }
+  }
+
+  function buildChart(canvasId, data, unit, color) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    return new Chart(ctx, {
+      type: 'line',
+      data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1b4332',
+            titleColor: '#d8f3dc',
+            bodyColor: '#fff',
+            padding: 10,
+            callbacks: {
+              title: items => new Date(items[0].parsed.x).toLocaleString(),
+              label: item => ` ${item.parsed.y} ${unit}`,
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { tooltipFormat: 'PPp' },
+            grid: { color: '#f0faf4' },
+            ticks: {
+              color: '#9ca3af',
+              font: { size: 10 },
+              maxTicksLimit: 8,
+              maxRotation: 0,
+            }
+          },
+          y: {
+            grid: { color: '#f0faf4' },
+            ticks: {
+              color: '#9ca3af',
+              font: { size: 10 },
+              callback: v => `${v}${unit === 'lux' ? '' : unit}`,
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // ── Time range buttons ─────────────────────────────────────
+
+  document.getElementById('time-range-group').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.time-btn');
+    if (!btn) return;
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRange = btn.dataset.range;
+    if (currentStationId) await loadData(currentStationId);
+  });
+
+  // ── Init ───────────────────────────────────────────────────
+
+  (async () => {
+    await Promise.all([checkServerStatus(), buildSidebar()]);
+  })();
+</script>
+</body>
+</html>
