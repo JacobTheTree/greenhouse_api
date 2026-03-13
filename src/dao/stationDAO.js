@@ -61,4 +61,23 @@ export default class stationDAO{
             return({error: "DeviceId required"});
         }
     }
+    static async addData(Id, data){
+        try{
+
+            console.log(data)
+            const query = {stationId: Id}
+            const update = { $push: { data: data } };
+            const options = { new: true }; // Return the updated document
+
+            const result = await station.findOneAndUpdate(query, update, options);
+            if (!result) {
+                throw new Error('Station not found');
+            }
+            return { status: "success" };
+
+        }catch(err){
+        console.error(`Unable to add data: ${err}`);
+        return {error: err};
+        }
+    }
 }
