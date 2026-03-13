@@ -16,8 +16,8 @@ app.use(morgan('dev'));
 app.use(cors());
 app.use(express.json());
 
-app.use('/api/station', stationRouter);
-app.use('/api/server', serverRouter);
+app.use('/api-v0.1.0/station', stationRouter);
+app.use('/api-v0.1.0/server', serverRouter);
 
 app.use('*', (req, res) => {
     res.status(404).json({ error: 'not found' })

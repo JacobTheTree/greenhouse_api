@@ -5,9 +5,11 @@ services:
     restart: always
     volumes:
       - mongodb:/data/db
+      - ./mongo-init:/docker-entrypoint-initdb.d
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: greenhouse_db
 
   mongo-express:
     container_name: mongo_dashboard_container
