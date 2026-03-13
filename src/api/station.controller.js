@@ -59,6 +59,7 @@ export default class StationController {
     // Function to update station metadata
     static async updateStationMetadata(req, res, next) {
         try {
+            console.log(req.body);
             const stationId = req.params.stationId
             const metadata = req.body
             const updateResult = await stationDAO.updateStationMetadata(stationId, metadata)
@@ -81,7 +82,7 @@ export default class StationController {
             const stationData = req.body
 
             console.log(`Received data for station ${stationId}:`, stationData);
-            stationDAO.addData(stationId, stationData);
+            stationDAO.postData(stationId, stationData);
 
             res.status(200).json({ message: "Station data received successfully" });
 

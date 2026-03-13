@@ -9,7 +9,7 @@ stationRouter.route("/station/:stationId/data")
     StationController.postData(req, res);
 })
 .get((req, res) => {
-    StationController.getStationTimeData(req, res);
+    StationController.getStationData(req, res);
 });
 
 // Define the route for updating and getting station metadata

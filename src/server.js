@@ -16,7 +16,7 @@ app.use(morgan('dev'));
 app.use(cors());
 app.use(express.json());
 
-app.use('/api-v0.1.0/station', stationRouter);
+app.use('/api-v0.1.0/', stationRouter);
 app.use('/api-v0.1.0/server', serverRouter);
 
 app.use('*', (req, res) => {

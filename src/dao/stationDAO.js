@@ -1,7 +1,9 @@
 let station
+let stationMetadata
+
 export default class stationDAO{
     static async injectDB(conn){
-        if(station){
+        if(station && stationMetadata){
             return
         }
         try{
@@ -12,11 +14,11 @@ export default class stationDAO{
             console.error(`Unable to establish collection handles in stationDAO: ${error}`)
         }
     }
-    static async getStationData(deviceId, timeStart, timeEnd) {
+    static async getStationData(stationId, timeStart, timeEnd) {
         //validate inputs
-        if(!deviceId) {
-            console.error("deviceId is required");
-            return { error: "deviceId is required" };
+        if(!stationId) {
+            console.error("stationId is required");
+            return { error: "stationId is required" };
         }
 
         if(!timeStart || !timeEnd) {
@@ -40,13 +42,14 @@ export default class stationDAO{
 
         //Build the query
         const query = {
-            deviceId: deviceId,
+            stationId: stationId,
             timestamp: {
                 $gt: startDate,
                 $lt: endDate
             }
         };
 
+        console.log(`Querying station data with query: ${JSON.stringify(query)}`);
         try {
             const cursor = await station.find(query);
             const results = await cursor.toArray();
@@ -56,56 +59,57 @@ export default class stationDAO{
             return { error: "Unable to retrieve station time data" };
         }
     }
-    static async getStationMetrics(deviceId) {
-        if (!deviceId) {
-            console.error(`Device ID is required`);
-            return({error: "DeviceId required"});
+    static async getStationMetrics(stationId) {
+        if (!stationId) {
+            console.error(`Station ID is required`);
+            return({error: "StationId required"});
         }
         try {
-            const query = { deviceId: deviceId };
-            const stationMetrics = await station.findOne(query, { projection: { _id: 0, deviceId: 1 } });
+            const query = { stationId: stationId };
+            const stationMetrics = await station.findOne(query, { projection: { _id: 0, stationId: 1 } });
             if (!stationMetrics) {
-                console.error(`Station with deviceId ${deviceId} not found`);
+                console.error(`Station with stationId ${stationId} not found`);
                 return({ error: "Station not found" });
             }
-            return stationMetrics.deviceId || {};
+            return stationMetrics.stationId || {};
         } catch (error) {
             console.error(`Unable to retrieve station metrics: ${error}`);
             return({ error: "Unable to retrieve station metrics" });
         }
     }
-    static async getStationMetadata(deviceId) {
-        if (!deviceId) {
-            console.error(`Device ID is required`);
-            return({error: "DeviceId required"});
+    static async getStationMetadata(stationId) {
+        if (!stationId) {
+            console.error(`Station ID is required`);
+            return({error: "StationId required"});
         }
         try {
-            const query = { deviceId: deviceId };
-            const stationMetadata = await stationMetadata.findOne(query);
-            if (!stationMetadata) {
-                console.error(`Station with deviceId ${deviceId} not found`);
+            const query = { stationId: stationId };
+            const Metadata = await stationMetadata.findOne(query);
+            if (!Metadata) {
+                console.error(`Station with stationId ${stationId} not found`);
                 return({ error: "Station not found" });
             }
-            return stationMetadata || {};
+            return Metadata || {};
         } catch (error) {
             console.error(`Unable to retrieve station metadata: ${error}`);
             return({ error: "Unable to retrieve station metadata" });
         }
     }
-    static async updateStationMetadata(deviceId, metadata) {
-        if (!deviceId) {
-            console.error(`Device ID is required`);
-            return({error: "DeviceId required"});
+    static async updateStationMetadata(stationId, metadata) {
+        if (!stationId) {
+            console.error(`Station ID is required`);
+            return({error: "StationId required"});
         }
         try {
-            const query = { deviceId: deviceId };
+            const query = { stationId: stationId };
             const update = { 
                 $set: metadata,
                 $currentDate: { updatedAt: true }
             };
             const result = await stationMetadata.findOneAndUpdate(query, update);
-            if (!result.value) {
-                console.error(`Station with deviceId ${deviceId} not found`);
+            console.log(result);
+            if (!result) {
+                console.error(`Station with stationId ${stationId} not found`);
                 return({ error: "Station not found" });
             }
             return { status: "success" };
@@ -162,7 +166,7 @@ export default class stationDAO{
             }
             console.log(stationIdInGroup);
             const groupData = { groupId: groupId, stations: [stationIdInGroup], data: [] };
-            for (i = 0; i < stationIdInGroup.length; i++) {
+            for (let i = 0; i < stationIdInGroup.length; i++) {
                 const stationId = stationIdInGroup[i].stationId;
                 const stationData = await stationDAO.getStationData(stationId, timeStart, timeEnd);
                 if (stationData.error) {
@@ -192,7 +196,7 @@ export default class stationDAO{
             }
             console.log(stationIdInGroup);
             const groupData = { groupId: groupId, stations: [stationIdInGroup], data: [] };
-            for (i = 0; i < stationIdInGroup.length; i++) {
+            for (let i = 0; i < stationIdInGroup.length; i++) {
                 const stationId = stationIdInGroup[i].stationId;
                 const stationData = await stationDAO.getStationMetadata(stationId);
                 if (stationData.error) {
@@ -222,7 +226,7 @@ export default class stationDAO{
             }
             console.log(stationIdInGroup);
             const groupData = { groupId: groupId, stations: [stationIdInGroup], data: [] };
-            for (i = 0; i < stationIdInGroup.length; i++) {
+            for (let i = 0; i < stationIdInGroup.length; i++) {
                 const stationId = stationIdInGroup[i].stationId;
                 const stationData = await stationDAO.getStationMetrics(stationId);
                 if (stationData.error) {
