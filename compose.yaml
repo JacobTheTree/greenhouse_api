@@ -22,7 +22,6 @@ services:
       ME_CONFIG_BASICAUTH_ENABLED: true
       ME_CONFIG_BASICAUTH_USERNAME: mongoexpressuser
       ME_CONFIG_BASICAUTH_PASSWORD: mongoexpresspass
-  
   api:
     container_name: greenhouse_api_container
     build: .
@@ -33,6 +32,12 @@ services:
       - .env
     depends_on:
       - mongo
+  cloudflared-tunnel:
+      image: cloudflare/cloudflared:latest
+      container_name: cloudflared-tunnel
+      restart: unless-stopped
+      command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+      network_mode: host
 
 volumes:
   mongodb: {}

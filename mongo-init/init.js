@@ -201,12 +201,68 @@ const sensorRanges = {
   lightIntensity: { min: 0,   max: 1000 }
 };
 
-function rand(min, max) {
-  return parseFloat((Math.random() * (max - min) + min).toFixed(2));
+// Each station gets a fixed baseline offset so they don't all read the same
+const stationBaselineOffsets = {};
+stations.forEach((id, idx) => {
+  stationBaselineOffsets[id] = {
+    temperature:    (idx - 4.5) * 0.8,   // spread stations across ~±4°C
+    humidity:       (idx - 4.5) * 2,
+    soilMoisture:   (idx - 4.5) * 3,
+    lightIntensity: (idx - 4.5) * 30
+  };
+});
+
+function clamp(val, min, max) {
+  return Math.min(max, Math.max(min, val));
+}
+
+function gaussianNoise(stddev) {
+  // Box-Muller transform for bell-curve noise instead of uniform
+  const u1 = Math.random();
+  const u2 = Math.random();
+  return stddev * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+function getTimeOfDayValue(hourFraction, sensor) {
+  // Returns a 0-1 multiplier representing time-of-day patterns
+  // hourFraction: 0-24
+  switch (sensor) {
+    case "temperature":
+      // peaks ~14:00, lowest ~05:00
+      return 0.5 + 0.5 * Math.sin((hourFraction - 8) * Math.PI / 12);
+    case "humidity":
+      // inverse of temperature — high at night, low in afternoon
+      return 0.5 - 0.4 * Math.sin((hourFraction - 8) * Math.PI / 12);
+    case "soilMoisture":
+      // slow drift, slightly lower in afternoon heat
+      return 0.5 - 0.15 * Math.sin((hourFraction - 8) * Math.PI / 12);
+    case "lightIntensity":
+      // zero at night, bell curve during day peaking at noon
+      if (hourFraction < 6 || hourFraction > 20) return 0;
+      return Math.sin((hourFraction - 6) * Math.PI / 14);
+    default:
+      return 0.5;
+  }
+}
+
+function generateReading(sensor, hourFraction, stationId) {
+  const range = sensorRanges[sensor];
+  const span = range.max - range.min;
+
+  // Time-of-day curve sets the base (0-1 mapped to the range)
+  const todFactor = getTimeOfDayValue(hourFraction, sensor);
+  const base = range.min + todFactor * span;
+
+  // Station offset gives each station its own personality
+  const offset = stationBaselineOffsets[stationId][sensor] || 0;
+
+  // Small gaussian noise for natural jitter
+  const noise = gaussianNoise(span * 0.03);
+
+  return parseFloat(clamp(base + offset + noise, range.min, range.max).toFixed(2));
 }
 
 function getSensorsForStation(stationId) {
-  // station_09 and 10 have fewer sensors
   if (stationId === "station_09") return ["temperature", "humidity"];
   if (stationId === "station_10") return ["temperature", "humidity", "lightIntensity"];
   return ["temperature", "humidity", "soilMoisture", "lightIntensity"];
@@ -218,16 +274,18 @@ const now = new Date();
 for (const stationId of stations) {
   const sensorKeys = getSensorsForStation(stationId);
 
-  // generate 24 hours of readings at 5 min intervals = 288 readings per station
-  for (let i = 0; i < 288; i++) {
+  for (let i = 0; i < 288*7; i++) {
+    const timestamp = new Date(now - i * 5 * 60 * 1000);
+    const hourFraction = timestamp.getUTCHours() + timestamp.getUTCMinutes() / 60;
+
     const sensors = {};
     for (const key of sensorKeys) {
-      sensors[key] = rand(sensorRanges[key].min, sensorRanges[key].max);
+      sensors[key] = generateReading(key, hourFraction, stationId);
     }
 
     readings.push({
       stationId,
-      timestamp: new Date(now - i * 5 * 60 * 1000),
+      timestamp,
       sensors,
       readingType: "scheduled",
       flag: null
