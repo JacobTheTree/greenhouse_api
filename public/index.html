@@ -516,7 +516,7 @@
 <script>
   const API = '/api-v0.1.0';
   const GROUPS = ['group_A', 'group_B', 'group_C'];
-  const STANDALONE_IDS = ['station_S1', 'station_P1'];
+  const STANDALONE_IDS = ['station_09', 'station_10'];
 
   let currentStationId = null;
   let currentRange = '24h';
@@ -575,16 +575,17 @@
 
     for (const groupId of GROUPS) {
       try {
-        const stations = await apiFetch(`/group/${groupId}/metadata`);
-        if (!stations || !stations.length) continue;
+        // API returns { groupId, data: [{ stationId, data: metadataObj }, ...] }
+        const response = await apiFetch(`/group/${groupId}/metadata`);
+        if (!response || !response.data || !response.data.length) continue;
 
         const label = document.createElement('div');
         label.className = 'group-label';
         label.textContent = groupId.replace('_', ' ');
         list.appendChild(label);
 
-        for (const s of stations) {
-          list.appendChild(makeStationItem(s));
+        for (const item of response.data) {
+          list.appendChild(makeStationItem(item.data));
         }
       } catch (e) {
         console.warn(`Could not load group ${groupId}:`, e);
