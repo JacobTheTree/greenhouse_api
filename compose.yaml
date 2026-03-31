@@ -36,7 +36,11 @@ services:
       image: cloudflare/cloudflared:latest
       container_name: cloudflared-tunnel
       restart: unless-stopped
-      command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+      env_file:
+        - .env
+      environment:
+        - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+      command: tunnel --no-autoupdate run
       network_mode: host
 
 volumes:

@@ -127,23 +127,24 @@ export default class stationDAO{
             console.error(`Valid station data is required`);
             return {error: "Valid station data required"};
         }
-        data = {
-            "_id": ObjectId("..."),
+        const { sensorData, readingType } = stationData.stationData ?? stationData.readingType;
+        const data = {
             "stationId": stationId,
-            "timestamp": new Date().toISOString(),
-            "sensors": stationData.sensorData,
-            "readingType": stationData.readingType,
+            "timestamp": new Date(),
+            "sensors": sensorData,
+            "readingType": readingType,
             "flag": null
         };
 
         try {
-            console.log(stationData)
-            const doc = { data };
+            const doc = data;
+            console.log(doc);
 
             const result = await station.insertOne(doc);
             if (!result) {
                 throw new Error('Station not found');
             }
+            console.log(result);
             return { status: "success" };
 
         }catch(error){
